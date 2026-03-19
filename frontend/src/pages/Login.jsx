@@ -34,7 +34,7 @@ function Login() {
     try {
       // Use correct endpoint based on role
       const endpoint = role === "admin" ? "/auth/admin/login" : "/auth/login";
-      
+
       const response = await axios.post(endpoint, {
         email,
         password,
@@ -60,49 +60,51 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-teal-950 to-amber-950 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.22),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.18),_transparent_28%)]"></div>
       <div className="w-full max-w-md">
         {/* Logo/Brand Section */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-linear-to-r from-blue-600 to-indigo-600 rounded-full mb-4">
+        <div className="text-center mb-8 relative z-10">
+          <div className={`inline-flex items-center justify-center w-18 h-18 rounded-2xl mb-4 shadow-2xl transition-colors duration-300 ${role === "admin"
+              ? "bg-linear-to-r from-amber-400 to-orange-500 shadow-orange-950/40"
+              : "bg-linear-to-r from-teal-400 to-cyan-500 shadow-cyan-950/40"
+            }`}>
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Skill Verification</h1>
-          <p className="text-gray-600">Access your account to continue</p>
+          <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Skill Verification</h1>
+          <p className="text-teal-50/80">Access your account to continue</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8"
+          className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative z-10"
         >
-          <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">
+          <h2 className="text-2xl font-semibold text-center text-slate-900 mb-6">
             Welcome Back
           </h2>
 
           {/* Role Selector */}
           <div className="mb-6">
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
               <button
                 type="button"
                 onClick={() => setRole("student")}
-                className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all duration-200 ${
-                  role === "student"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-600 hover:text-gray-800"
-                }`}
+                className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all duration-200 ${role === "student"
+                    ? "bg-white text-teal-700 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 Student
               </button>
               <button
                 type="button"
                 onClick={() => setRole("admin")}
-                className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all duration-200 ${
-                  role === "admin"
-                    ? "bg-white text-orange-600 shadow-sm"
-                    : "text-gray-600 hover:text-gray-800"
-                }`}
+                className={`flex-1 py-2.5 px-4 rounded-md font-medium text-sm transition-all duration-200 ${role === "admin"
+                    ? "bg-white text-amber-700 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 Admin
               </button>
@@ -111,45 +113,45 @@ function Login() {
 
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Email Address
               </label>
               <div className="relative">
                 <input
                   type="email"
-                  className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-4 pr-12 py-3 border border-slate-200 bg-slate-50 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={role === "admin" ? "admin@example.com" : "student@example.com"}
                   required
                 />
-                <svg className="absolute right-3 top-3.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute right-3 top-3.5 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                 </svg>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Password
               </label>
               <div className="relative">
                 <input
                   type="password"
-                  className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-4 pr-12 py-3 border border-slate-200 bg-slate-50 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
                 />
-                <svg className="absolute right-3 top-3.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute right-3 top-3.5 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl">
                 <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -160,11 +162,10 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full text-white py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                role === "admin"
-                  ? "bg-linear-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg hover:shadow-xl"
-                  : "bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl"
-              }`}
+              className={`w-full text-white py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${role === "admin"
+                  ? "bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg hover:shadow-xl"
+                  : "bg-linear-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 shadow-lg hover:shadow-xl"
+                }`}
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -178,16 +179,16 @@ function Login() {
           </div>
 
           {role === "student" && (
-            <p className="mt-6 text-center text-sm text-gray-600">
+            <p className="mt-6 text-center text-sm text-slate-600">
               Don't have an account?{" "}
-              <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors">
+              <Link to="/register" className="text-teal-700 hover:text-teal-800 font-medium hover:underline transition-colors">
                 Create one here
               </Link>
             </p>
           )}
         </form>
 
-        <div className="text-center mt-8 text-xs text-gray-500">
+        <div className="text-center mt-8 text-xs text-teal-50/70 relative z-10">
           © 2024 Skill Verification System. All rights reserved.
         </div>
       </div>

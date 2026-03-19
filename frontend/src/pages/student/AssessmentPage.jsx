@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "../../utils/axiosInstance";
 import QuestionCard from "../../components/QuestionCard";
@@ -17,8 +17,28 @@ function AssessmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [domain, setDomain] = useState(null);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [securityWarnings, setSecurityWarnings] = useState(0);
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement));
+  const [hasEnteredFullscreen, setHasEnteredFullscreen] = useState(Boolean(document.fullscreenElement));
+  const [issueType, setIssueType] = useState("Incorrect Answer");
+  const [issueDescription, setIssueDescription] = useState("");
+  const [issueSubmitting, setIssueSubmitting] = useState(false);
+  const [issueMessage, setIssueMessage] = useState("");
+  const [issueStatusMessage, setIssueStatusMessage] = useState("");
+  const [showIssueForm, setShowIssueForm] = useState(false);
+
+  const autoSubmitTriggeredRef = useRef(false);
+  const lastTabSwitchAtRef = useRef(0);
 
   const TIME_LIMIT_MINUTES = 60; // 60 minutes for assessment
+  const MAX_SECURITY_WARNINGS = 3;
+
+  const requestFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+    }
+  };
 
   // Prevent navigation during assessment
   useEffect(() => {
@@ -32,6 +52,96 @@ function AssessmentPage() {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  // Keep assessment in fullscreen mode and track exits.
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const currentlyFullscreen = Boolean(document.fullscreenElement);
+      setIsFullscreen(currentlyFullscreen);
+
+      if (currentlyFullscreen) {
+        setHasEnteredFullscreen(true);
+      }
+
+      if (
+        !currentlyFullscreen &&
+        hasEnteredFullscreen &&
+        !loading &&
+        questions.length > 0 &&
+        !submitting &&
+        !autoSubmitTriggeredRef.current
+      ) {
+        // If fullscreen exited due to a recent tab switch, count only the tab-switch warning.
+        const exitedFromRecentTabSwitch = Date.now() - lastTabSwitchAtRef.current < 2000;
+        if (exitedFromRecentTabSwitch) {
+          return;
+        }
+
+        handleFullscreenExitAutoSubmit();
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [hasEnteredFullscreen, loading, questions.length, submitting]);
+
+  // Detect tab/app switching via page visibility.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.hidden &&
+        !loading &&
+        questions.length > 0 &&
+        !submitting &&
+        !autoSubmitTriggeredRef.current
+      ) {
+        const now = Date.now();
+        // Some browsers can dispatch rapid visibility changes for one user action.
+        if (now - lastTabSwitchAtRef.current < 1200) {
+          return;
+        }
+
+        lastTabSwitchAtRef.current = now;
+        issueSecurityWarning("Tab switch detected.");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [loading, questions.length, submitting]);
+
+  // Block copy actions and text selection shortcuts during assessment.
+  useEffect(() => {
+    const preventDefault = (e) => e.preventDefault();
+    const handleKeyDown = (e) => {
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && ["c", "x", "v", "a"].includes(key)) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("copy", preventDefault);
+    document.addEventListener("cut", preventDefault);
+    document.addEventListener("paste", preventDefault);
+    document.addEventListener("contextmenu", preventDefault);
+    document.addEventListener("selectstart", preventDefault);
+    document.addEventListener("dragstart", preventDefault);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("copy", preventDefault);
+      document.removeEventListener("cut", preventDefault);
+      document.removeEventListener("paste", preventDefault);
+      document.removeEventListener("contextmenu", preventDefault);
+      document.removeEventListener("selectstart", preventDefault);
+      document.removeEventListener("dragstart", preventDefault);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -98,6 +208,8 @@ function AssessmentPage() {
   const goToQuestion = (index) => {
     setCurrentQuestionIndex(index);
     setNavigationOpen(false);
+    setShowIssueForm(false);
+    setIssueMessage("");
   };
 
   // Handle time up
@@ -106,8 +218,40 @@ function AssessmentPage() {
     submitAssessment();
   };
 
+  const issueSecurityWarning = (reason) => {
+    if (submitting || autoSubmitTriggeredRef.current) return;
+
+    setSecurityWarnings((prev) => {
+      const next = prev + 1;
+
+      if (next >= MAX_SECURITY_WARNINGS) {
+        setSecurityMessage(
+          `Tab-switch limit reached (${next}/${MAX_SECURITY_WARNINGS}). Assessment is being submitted automatically.`
+        );
+        autoSubmitTriggeredRef.current = true;
+        submitAssessment();
+      } else {
+        setSecurityMessage(
+          `${reason} Warning ${next}/${MAX_SECURITY_WARNINGS}. After ${MAX_SECURITY_WARNINGS} tab-switch warnings, the assessment ends automatically.`
+        );
+      }
+
+      return next;
+    });
+  };
+
+  const handleFullscreenExitAutoSubmit = () => {
+    if (submitting || autoSubmitTriggeredRef.current) return;
+
+    autoSubmitTriggeredRef.current = true;
+    setSecurityMessage("Fullscreen mode was exited. Assessment is being submitted automatically.");
+    submitAssessment();
+  };
+
   // Submit assessment
   const submitAssessment = async () => {
+    if (submitting) return;
+
     try {
       setSubmitting(true);
 
@@ -123,9 +267,18 @@ function AssessmentPage() {
       });
 
       if (response.data.status === "success") {
+        if (document.fullscreenElement) {
+          try {
+            await document.exitFullscreen();
+          } catch (fsError) {
+            // Ignore fullscreen exit failures during navigation.
+          }
+        }
+
         // Navigate to results page with data - map backend field names to frontend expectations
         const resultData = response.data.data;
         const resultsToPass = {
+          domainId: parseInt(domainId),
           score: resultData.score,
           total_questions: resultData.total,
           percentage: resultData.percentage,
@@ -168,6 +321,38 @@ function AssessmentPage() {
 
     if (window.confirm(confirmMessage)) {
       submitAssessment();
+    }
+  };
+
+  const handleReportIssue = async (e) => {
+    e.preventDefault();
+    setIssueStatusMessage("");
+
+    if (!issueDescription.trim() || issueDescription.trim().length < 10) {
+      setIssueMessage("Please provide at least 10 characters describing the issue.");
+      return;
+    }
+
+    try {
+      setIssueSubmitting(true);
+      setIssueMessage("");
+
+      await axios.post("/assessment/question-report", {
+        domainId: parseInt(domainId),
+        questionId: currentQuestion.id,
+        issueType,
+        description: issueDescription.trim(),
+      });
+
+      setIssueDescription("");
+      setIssueMessage("");
+      setShowIssueForm(false);
+      setIssueStatusMessage("Issue reported successfully.");
+    } catch (err) {
+      setIssueStatusMessage("");
+      setIssueMessage(err.response?.data?.message || "Failed to submit report. Please try again.");
+    } finally {
+      setIssueSubmitting(false);
     }
   };
 
@@ -214,142 +399,264 @@ function AssessmentPage() {
   const answered = answers[currentQuestion.id] || null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-cyan-50/40 px-3 py-4 lg:px-6 select-none">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
             {domain?.name} Assessment
           </h1>
-          <p className="text-gray-600">
+          <p className="text-slate-600 text-lg">
             Answer all questions carefully. You cannot navigate away during the assessment.
           </p>
         </div>
 
-        {/* Timer and Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="md:col-span-2">
-            <AssessmentTimer timeLimit={TIME_LIMIT_MINUTES} onTimeUp={handleTimeUp} />
+        {securityMessage && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-xl text-amber-800 font-semibold text-center">
+            {securityMessage}
           </div>
-          <div className="bg-purple-100 border-2 border-purple-500 rounded-lg p-4 text-center">
-            <p className="text-sm font-semibold text-purple-700">Answered</p>
-            <p className="text-3xl font-bold text-purple-600">{answeredCount}/{questions.length}</p>
-          </div>
+        )}
+
+        <div className="mb-6 p-3 bg-white/90 border border-slate-200 rounded-xl text-sm text-slate-700 flex justify-between items-center shadow-sm">
+          <span>Security warnings: {securityWarnings}/{MAX_SECURITY_WARNINGS}</span>
+          <span className={isFullscreen ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>
+            {isFullscreen ? "Fullscreen active" : "Fullscreen required"}
+          </span>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Question Panel */}
-          <div className="lg:col-span-3">
-            {/* Progress Bar */}
-            <div className="mb-6">
-              <ProgressBar current={currentQuestionIndex + 1} total={questions.length} />
+        {!isFullscreen && (
+          <div className="mb-6 p-6 bg-rose-50 border border-rose-300 rounded-2xl text-center">
+            <h2 className="text-xl font-bold text-rose-700 mb-2">Fullscreen Mode Required</h2>
+            <p className="text-rose-700 mb-4">
+              Assessment can only be taken in fullscreen mode. Exiting fullscreen will submit your assessment automatically.
+            </p>
+            <button
+              onClick={async () => {
+                try {
+                  await requestFullscreen();
+                } catch (err) {
+                  setSecurityMessage("Unable to enter fullscreen automatically. Please allow fullscreen and try again.");
+                }
+              }}
+              className="bg-rose-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-rose-700 transition"
+            >
+              Enter Fullscreen
+            </button>
+          </div>
+        )}
+
+        <div className={!isFullscreen ? "pointer-events-none opacity-40" : ""}>
+          {/* Timer and Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="md:col-span-2">
+              <AssessmentTimer timeLimit={TIME_LIMIT_MINUTES} onTimeUp={handleTimeUp} />
             </div>
-
-            {/* Question Card */}
-            <div className="mb-6">
-              <QuestionCard
-                question={currentQuestion}
-                selectedAnswer={answered}
-                onAnswerSelect={handleAnswerSelect}
-                questionNumber={currentQuestionIndex + 1}
-              />
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-between items-center gap-4">
-              <button
-                onClick={handlePrevious}
-                disabled={currentQuestionIndex === 0}
-                className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed bg-gray-600 text-white hover:bg-gray-700 transition"
-              >
-                ← Previous
-              </button>
-
-              <div className="text-sm text-gray-600">
-                Question {currentQuestionIndex + 1} of {questions.length}
-              </div>
-
-              <button
-                onClick={handleNext}
-                disabled={currentQuestionIndex === questions.length - 1}
-                className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed bg-gray-600 text-white hover:bg-gray-700 transition"
-              >
-                Next →
-              </button>
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 text-center shadow-lg">
+              <p className="text-sm font-semibold text-slate-300">Answered</p>
+              <p className="text-4xl font-bold text-white">{answeredCount}/{questions.length}</p>
             </div>
           </div>
 
-          {/* Side Navigation Panel */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-4 sticky top-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-gray-800">Question Map</h3>
+          {/* Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+            {/* Question Panel */}
+            <div>
+              {/* Progress Bar */}
+              <div className="mb-6">
+                <ProgressBar current={currentQuestionIndex + 1} total={questions.length} />
+              </div>
+
+              {/* Question Card */}
+              <div className="mb-6">
+                <QuestionCard
+                  question={currentQuestion}
+                  selectedAnswer={answered}
+                  onAnswerSelect={handleAnswerSelect}
+                  questionNumber={currentQuestionIndex + 1}
+                />
+              </div>
+
+              <div className="mb-4 flex justify-end">
                 <button
-                  onClick={() => setNavigationOpen(!navigationOpen)}
-                  className="lg:hidden text-blue-600 font-bold"
+                  type="button"
+                  onClick={() => {
+                    setShowIssueForm((prev) => !prev);
+                    setIssueMessage("");
+                    setIssueStatusMessage("");
+                  }}
+                  className="inline-flex items-center gap-2 h-12 px-4 rounded-2xl border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-cyan-400 hover:text-cyan-700 transition"
+                  title="Report a question issue"
+                  aria-label="Report a question issue"
                 >
-                  {navigationOpen ? "Hide" : "Show"}
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 6.75h5m-7.5 3h10m-10 4.5h10m-7.5 3h5" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 4.5a2.25 2.25 0 114.5 0V6h-4.5V4.5zM8.25 6h7.5A2.25 2.25 0 0118 8.25v7.5A4.5 4.5 0 0113.5 20.25h-3A4.5 4.5 0 016 15.75v-7.5A2.25 2.25 0 018.25 6z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5h1.5m12 0h1.5M5.25 15.75l1.2-.9m11.1.9-1.2-.9" />
+                  </svg>
+                  <span className="text-sm font-semibold whitespace-nowrap">Report an Issue</span>
                 </button>
               </div>
 
-              {/* Question Grid */}
-              <div className={`grid grid-cols-4 gap-2 ${navigationOpen ? "block" : "hidden lg:grid"}`}>
-                {questions.map((q, index) => (
-                  <button
-                    key={q.id}
-                    onClick={() => goToQuestion(index)}
-                    className={`aspect-square rounded-lg font-semibold text-sm transition ${
-                      index === currentQuestionIndex
-                        ? "bg-blue-600 text-white ring-2 ring-blue-800"
-                        : answers[q.id]
-                        ? "bg-green-500 text-white hover:bg-green-600"
-                        : "bg-gray-300 text-gray-700 hover:bg-gray-400"
-                    }`}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
-              </div>
+              {issueStatusMessage && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+                  {issueStatusMessage}
+                </div>
+              )}
 
-              {/* Legend */}
-              <div className={`mt-6 space-y-2 text-xs ${navigationOpen ? "block" : "hidden lg:block"}`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
-                  <span className="text-gray-700">Answered</span>
+              {/* Report Question Issue */}
+              {showIssueForm && (
+              <div className="mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <h3 className="text-base font-bold text-slate-900 mb-3">Report Question Issue</h3>
+                <form onSubmit={handleReportIssue} className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Issue Type</label>
+                      <select
+                        value={issueType}
+                        onChange={(e) => setIssueType(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      >
+                        <option>Incorrect Answer</option>
+                        <option>Ambiguous Wording</option>
+                        <option>Typo / Grammar Issue</option>
+                        <option>Multiple Correct Options</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                    <div className="text-xs text-slate-500 flex items-end pb-2">
+                      Question #{currentQuestionIndex + 1} | ID: {currentQuestion.id}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+                    <textarea
+                      value={issueDescription}
+                      onChange={(e) => setIssueDescription(e.target.value)}
+                      placeholder="Describe what is incorrect or unclear in this question"
+                      rows={3}
+                      className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+
+                  {issueMessage && (
+                    <p className={`text-sm ${issueMessage.toLowerCase().includes("success") ? "text-emerald-700" : "text-rose-700"}`}>
+                      {issueMessage}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={issueSubmitting}
+                    className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {issueSubmitting ? "Submitting..." : "Submit Issue Report"}
+                  </button>
+                </form>
+              </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between items-center gap-4">
+                <button
+                  onClick={handlePrevious}
+                  disabled={currentQuestionIndex === 0}
+                  className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed bg-gray-600 text-white hover:bg-gray-700 transition"
+                >
+                  ← Previous
+                </button>
+
+                <div className="text-sm text-gray-600">
+                  Question {currentQuestionIndex + 1} of {questions.length}
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-300 rounded-sm"></div>
-                  <span className="text-gray-700">Not Answered</span>
+
+                <button
+                  onClick={handleNext}
+                  disabled={currentQuestionIndex === questions.length - 1}
+                  className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed bg-gray-600 text-white hover:bg-gray-700 transition"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+
+            {/* Side Navigation Panel */}
+            <div>
+              <div className="bg-white/95 rounded-2xl shadow-xl p-4 sticky top-4 border border-slate-200/70">
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs uppercase font-semibold tracking-wide text-amber-700">Questions Remaining</p>
+                  <p className="text-2xl font-bold text-amber-800">{questions.length - answeredCount}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-600 rounded-sm"></div>
-                  <span className="text-gray-700">Current</span>
+
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-900">Question Map</h3>
+                  <button
+                    onClick={() => setNavigationOpen(!navigationOpen)}
+                    className="lg:hidden text-cyan-700 font-bold"
+                  >
+                    {navigationOpen ? "Hide" : "Show"}
+                  </button>
+                </div>
+
+                {/* Question Grid */}
+                <div className={`grid grid-cols-4 gap-2 ${navigationOpen ? "block" : "hidden lg:grid"}`}>
+                  {questions.map((q, index) => (
+                    <button
+                      key={q.id}
+                      onClick={() => goToQuestion(index)}
+                      disabled={!isFullscreen}
+                      className={`aspect-square rounded-lg font-semibold text-sm transition ${
+                        index === currentQuestionIndex
+                            ? "bg-cyan-600 text-white ring-2 ring-cyan-800"
+                          : answers[q.id]
+                            ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                            : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                      }`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div className={`mt-6 space-y-2 text-xs ${navigationOpen ? "block" : "hidden lg:block"}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
+                    <span className="text-slate-700">Answered</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-slate-300 rounded-sm"></div>
+                    <span className="text-slate-700">Not Answered</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-cyan-600 rounded-sm"></div>
+                    <span className="text-slate-700">Current</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Submit Button */}
-        <div className="mt-12 flex justify-center">
-          <button
-            onClick={handleSubmitClick}
-            disabled={submitting}
-            className="px-12 py-3 bg-green-600 text-white font-bold text-lg rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg"
-          >
-            {submitting ? "Submitting..." : "Submit Assessment"}
-          </button>
-        </div>
-
-        {/* Unanswered Warning */}
-        {answeredCount < questions.length && (
-          <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-500 rounded-lg text-center">
-            <p className="text-yellow-700 font-semibold">
-              ⚠️ {questions.length - answeredCount} question(s) left unanswered
-            </p>
+          {/* Submit Button */}
+          <div className="mt-12 flex justify-center">
+            <button
+              onClick={handleSubmitClick}
+              disabled={submitting || !isFullscreen}
+              className="px-12 py-3 bg-linear-to-r from-teal-500 to-cyan-600 text-white font-bold text-lg rounded-xl hover:from-teal-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg"
+            >
+              {submitting ? "Submitting..." : "Submit Assessment"}
+            </button>
           </div>
-        )}
+
+          {/* Unanswered Warning */}
+          {answeredCount < questions.length && (
+            <div className="mt-6 p-4 bg-amber-50 border border-amber-300 rounded-xl text-center">
+              <p className="text-amber-800 font-semibold">
+                {questions.length - answeredCount} question(s) left unanswered
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -13,6 +13,21 @@ function MySkillsPage() {
     fetchSkills();
   }, []);
 
+  const resolveLevel = (rawLevel, percentage = 0) => {
+    if (typeof rawLevel === "string" && rawLevel.trim()) {
+      const normalized = rawLevel.trim().toLowerCase();
+      if (normalized.startsWith("fail")) return "Fail";
+      if (normalized.startsWith("expert")) return "Expert";
+      if (normalized.startsWith("inter")) return "Intermediate";
+      if (normalized.startsWith("begin")) return "Beginner";
+    }
+
+    if (percentage >= 90) return "Expert";
+    if (percentage >= 70) return "Intermediate";
+    if (percentage >= 50) return "Beginner";
+    return "Fail";
+  };
+
   const fetchSkills = async () => {
     try {
       setLoading(true);
@@ -26,20 +41,22 @@ function MySkillsPage() {
           const domainKey = attempt.domain;
           
           if (!skillsMap[domainKey]) {
+            const attemptPercentage = parseFloat(attempt.percentage || 0);
             skillsMap[domainKey] = {
               domain: attempt.domain,
               bestScore: attempt.score,
-              bestPercentage: parseFloat(attempt.percentage),
-              bestLevel: attempt.level,
+              bestPercentage: attemptPercentage,
+              bestLevel: resolveLevel(attempt.level, attemptPercentage),
               attempts: 1
             };
           } else {
             skillsMap[domainKey].attempts += 1;
             // Update if this is a better score
             if (parseFloat(attempt.percentage) > skillsMap[domainKey].bestPercentage) {
+              const attemptPercentage = parseFloat(attempt.percentage || 0);
               skillsMap[domainKey].bestScore = attempt.score;
-              skillsMap[domainKey].bestPercentage = parseFloat(attempt.percentage);
-              skillsMap[domainKey].bestLevel = attempt.level;
+              skillsMap[domainKey].bestPercentage = attemptPercentage;
+              skillsMap[domainKey].bestLevel = resolveLevel(attempt.level, attemptPercentage);
             }
           }
         });
@@ -60,21 +77,23 @@ function MySkillsPage() {
   };
 
   const getLevelColor = (level) => {
-    if (level === "Expert") return "bg-green-100 text-green-800 border-green-300";
-    if (level === "Intermediate") return "bg-blue-100 text-blue-800 border-blue-300";
-    return "bg-yellow-100 text-yellow-800 border-yellow-300";
+    if (level === "Fail") return "bg-rose-100 text-rose-800 border-rose-300";
+    if (level === "Expert") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+    if (level === "Intermediate") return "bg-cyan-100 text-cyan-800 border-cyan-300";
+    return "bg-amber-100 text-amber-800 border-amber-300";
   };
 
-  const getLevelIcon = (level) => {
-    if (level === "Expert") return "⭐";
-    if (level === "Intermediate") return "🚀";
-    return "📘";
+  const getLevelTag = (level) => {
+    if (level === "Fail") return "FL";
+    if (level === "Expert") return "EX";
+    if (level === "Intermediate") return "IN";
+    return "BG";
   };
 
   const getProgressColor = (percentage) => {
-    if (percentage >= 80) return "bg-green-500";
-    if (percentage >= 60) return "bg-blue-500";
-    if (percentage >= 40) return "bg-yellow-500";
+    if (percentage >= 90) return "bg-green-500";
+    if (percentage >= 70) return "bg-blue-500";
+    if (percentage >= 50) return "bg-yellow-500";
     return "bg-red-500";
   };
 
@@ -131,7 +150,7 @@ function MySkillsPage() {
               <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-600">
                 <p className="text-gray-600 text-sm mb-2">Expert Skills</p>
                 <p className="text-4xl font-bold text-green-600">
-                  {skills.filter((s) => s.bestLevel === "Expert").length}
+                  {skills.filter((s) => resolveLevel(s.bestLevel, s.bestPercentage) === "Expert").length}
                 </p>
               </div>
               <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-600">
@@ -145,74 +164,84 @@ function MySkillsPage() {
             {/* Skills Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {skills.map((skill, index) => (
+                (() => {
+                  const level = resolveLevel(skill.bestLevel, skill.bestPercentage);
+                  return (
                 <div
                   key={index}
-                  className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition border-t-4 border-blue-600"
+                  className="bg-white/95 rounded-3xl shadow-xl p-6 hover:shadow-2xl transition border border-slate-200/70"
                 >
                   {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-5">
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-800 mb-1">{skill.domain}</h3>
-                      <p className="text-gray-600 text-sm">
+                      <p className="text-xs uppercase tracking-wide font-semibold text-slate-500 mb-1">Domain</p>
+                      <h3 className="text-2xl font-bold text-slate-900 mb-1 leading-tight">{skill.domain}</h3>
+                      <p className="text-slate-600 text-sm">
                         {skill.attempts} {skill.attempts === 1 ? "attempt" : "attempts"}
                       </p>
                     </div>
-                    <div className={`text-3xl ${getLevelIcon(skill.bestLevel)}`}></div>
+                    <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-slate-900 text-white text-sm font-bold">
+                      {getLevelTag(level)}
+                    </div>
                   </div>
 
                   {/* Score */}
-                  <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-gray-600 text-sm mb-1">Best Score</p>
-                    <p className="text-3xl font-bold text-blue-600">{skill.bestPercentage.toFixed(2)}%</p>
+                  <div className="mb-5 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <p className="text-slate-600 text-sm mb-1 font-medium">Best Score</p>
+                    <p className="text-4xl font-bold text-cyan-700 tracking-tight">{skill.bestPercentage.toFixed(2)}%</p>
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="mb-4">
+                  <div className="mb-5">
                     <div className="flex justify-between items-center mb-2">
-                      <p className="text-gray-600 text-sm font-semibold">Proficiency</p>
-                      <span className="text-sm font-bold text-gray-700">{Math.round(skill.bestPercentage)}%</span>
+                      <p className="text-slate-600 text-sm font-semibold">Proficiency</p>
+                      <span className="text-sm font-bold text-slate-700">{Math.round(skill.bestPercentage)}%</span>
                     </div>
-                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
                       <div
-                        className={`h-full ${getProgressColor(skill.bestPercentage)} transition-all`}
+                        className={`h-full ${getProgressColor(skill.bestPercentage)} transition-all duration-500`}
                         style={{ width: `${skill.bestPercentage}%` }}
                       ></div>
                     </div>
                   </div>
 
                   {/* Level Badge */}
-                  <div className="mb-4">
-                    <p className="text-gray-600 text-sm mb-2">Current Level</p>
+                  <div className="mb-5">
+                    <p className="text-slate-600 text-sm mb-2 font-semibold">Current Level</p>
                     <div
-                      className={`inline-block px-4 py-2 rounded-full font-bold text-sm border-2 ${getLevelColor(
-                        skill.bestLevel
+                      className={`inline-flex items-center px-4 py-2 rounded-full font-bold text-sm border ${getLevelColor(
+                        level
                       )}`}
                     >
-                      {getLevelIcon(skill.bestLevel)} {skill.bestLevel}
+                      {level}
                     </div>
                   </div>
 
                   {/* Action Button */}
-                  <div className="pt-4 border-t border-gray-200">
+                  <div className="pt-4 border-t border-slate-200">
                     <button
                       onClick={() => navigate("/student/dashboard")}
-                      className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition text-sm"
+                      className="w-full bg-linear-to-r from-teal-500 to-cyan-600 text-white py-2.5 rounded-xl font-semibold hover:from-teal-600 hover:to-cyan-700 transition text-sm"
                     >
                       Retake Assessment
                     </button>
                   </div>
 
                   {/* Insight */}
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-xs text-blue-700">
-                      {skill.bestLevel === "Expert"
-                        ? "🌟 Outstanding! You've mastered this skill."
-                        : skill.bestLevel === "Intermediate"
-                        ? "📈 Good progress! Keep practicing to reach Expert level."
-                        : "💪 Keep learning! You'll reach higher levels with more practice."}
+                  <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-xs text-slate-700 leading-5">
+                      {level === "Expert"
+                        ? "Excellent performance. You have demonstrated strong mastery in this domain."
+                        : level === "Intermediate"
+                        ? "Strong progress so far. Additional practice can help you reach expert level."
+                        : level === "Fail"
+                        ? "This domain is currently below beginner threshold. Reattempt after practice to improve your score."
+                        : "Continue practicing consistently to improve your proficiency in this domain."}
                     </p>
                   </div>
                 </div>
+                  );
+                })()
               ))}
             </div>
           </>

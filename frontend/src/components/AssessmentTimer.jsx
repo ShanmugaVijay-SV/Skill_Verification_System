@@ -22,18 +22,18 @@ function AssessmentTimer({ timeLimit, onTimeUp }) {
   const isLowTime = timeLeft < 300; // Less than 5 minutes
 
   return (
-    <div className={`flex items-center justify-center p-4 rounded-lg ${
-      isLowTime ? "bg-red-100 border-2 border-red-500" : "bg-blue-100 border-2 border-blue-500"
+    <div className={`flex items-center justify-center p-4 rounded-2xl border ${
+      isLowTime ? "bg-rose-50 border-rose-300" : "bg-cyan-50 border-cyan-200"
     }`}>
       <div className="text-center">
-        <p className={`text-sm font-semibold ${isLowTime ? "text-red-700" : "text-blue-700"}`}>
+        <p className={`text-sm font-semibold ${isLowTime ? "text-rose-700" : "text-cyan-700"}`}>
           Time Remaining
         </p>
-        <p className={`text-3xl font-bold tabular-nums ${isLowTime ? "text-red-600" : "text-blue-600"}`}>
+        <p className={`text-4xl font-bold tabular-nums ${isLowTime ? "text-rose-600" : "text-cyan-800"}`}>
           {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
         </p>
         {isLowTime && (
-          <p className="text-xs text-red-600 mt-1">⚠️ Time is running out!</p>
+          <p className="text-xs text-rose-600 mt-1">Time is running out</p>
         )}
       </div>
     </div>

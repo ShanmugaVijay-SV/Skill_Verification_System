@@ -44,6 +44,7 @@ function StudentHistoryPage() {
 
   const getLevelBadge = (level) => {
     const badges = {
+      Fail: "bg-rose-100 text-rose-800",
       Expert: "bg-green-100 text-green-800",
       Intermediate: "bg-blue-100 text-blue-800",
       Beginner: "bg-yellow-100 text-yellow-800",
@@ -56,8 +57,9 @@ function StudentHistoryPage() {
   };
 
   const getPercentageColor = (percentage) => {
-    if (percentage >= 80) return "text-green-600 font-bold";
-    if (percentage >= 60) return "text-blue-600 font-bold";
+    if (percentage >= 90) return "text-green-600 font-bold";
+    if (percentage >= 70) return "text-blue-600 font-bold";
+    if (percentage >= 50) return "text-amber-600 font-bold";
     return "text-orange-600 font-bold";
   };
 

@@ -3,13 +3,13 @@ import Topbar from "../Topbar";
 
 function StudentLayout({ children }) {
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-transparent">
       <SidebarStudent />
 
       <div className="flex-1 ml-64">
         <Topbar />
 
-        <div className="p-6 bg-gray-100 min-h-screen">
+        <div className="p-6 min-h-screen bg-linear-to-br from-teal-50 via-white to-amber-50/40">
           {children}
         </div>
       </div>

@@ -7,13 +7,13 @@ function QuestionCard({ question, selectedAnswer, onAnswerSelect, questionNumber
   ];
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-lg">
+    <div className="bg-white/95 p-8 rounded-3xl shadow-xl border border-slate-200/70">
       {/* Question Number and Text */}
       <div className="mb-6">
-        <span className="inline-block bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-semibold mb-3">
+        <span className="inline-block bg-cyan-100 text-cyan-800 px-4 py-1 rounded-full text-sm font-semibold mb-3 border border-cyan-200">
           Question {questionNumber}
         </span>
-        <h2 className="text-2xl font-bold text-gray-800 leading-relaxed">
+        <h2 className="text-3xl font-bold text-slate-900 leading-relaxed tracking-tight">
           {question.question_text}
         </h2>
       </div>
@@ -23,10 +23,10 @@ function QuestionCard({ question, selectedAnswer, onAnswerSelect, questionNumber
         {options.map((option) => (
           <label
             key={option.id}
-            className={`flex items-center p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+            className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
               selectedAnswer === option.id
-                ? "border-blue-600 bg-blue-50"
-                : "border-gray-300 bg-gray-50 hover:border-blue-400"
+                ? "border-cyan-600 bg-cyan-50"
+                : "border-slate-300 bg-slate-50 hover:border-cyan-400"
             }`}
           >
             <input
@@ -35,12 +35,12 @@ function QuestionCard({ question, selectedAnswer, onAnswerSelect, questionNumber
               value={option.id}
               checked={selectedAnswer === option.id}
               onChange={(e) => onAnswerSelect(e.target.value)}
-              className="w-5 h-5 text-blue-600 cursor-pointer accent-blue-600"
+              className="w-5 h-5 text-cyan-600 cursor-pointer accent-cyan-600"
             />
             <span className={`ml-4 text-lg ${
               selectedAnswer === option.id
-                ? "font-semibold text-blue-700"
-                : "text-gray-700"
+                ? "font-semibold text-cyan-800"
+                : "text-slate-700"
             }`}>
               <strong>{option.id.toUpperCase()}.</strong> {option.text}
             </span>
@@ -50,8 +50,8 @@ function QuestionCard({ question, selectedAnswer, onAnswerSelect, questionNumber
 
       {/* Visual Indicator */}
       {selectedAnswer && (
-        <div className="mt-6 p-3 bg-green-50 border border-green-300 rounded-lg">
-          <p className="text-sm text-green-700">
+        <div className="mt-6 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <p className="text-sm text-emerald-700 font-medium">
             ✓ You selected option <strong>{selectedAnswer.toUpperCase()}</strong>
           </p>
         </div>

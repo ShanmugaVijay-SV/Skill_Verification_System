@@ -1,1 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap");
 @import "tailwindcss";
+
+:root {
+	--bg-main: #f3f7f7;
+	--bg-soft: #ffffff;
+	--text-main: #132026;
+	--text-muted: #51616a;
+	--brand-primary: #0f766e;
+	--brand-secondary: #164e63;
+	--brand-accent: #f59e0b;
+	--border-soft: #d8e2e5;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	font-family: "Sora", "Segoe UI", sans-serif;
+	color: var(--text-main);
+	background:
+		radial-gradient(circle at 15% 15%, rgba(15, 118, 110, 0.14), transparent 28%),
+		radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.14), transparent 34%),
+		linear-gradient(180deg, #f8fbfb 0%, var(--bg-main) 100%);
+}
+
+#root {
+	min-height: 100vh;
+}
