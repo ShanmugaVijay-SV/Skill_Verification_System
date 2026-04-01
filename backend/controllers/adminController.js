@@ -1,5 +1,44 @@
 const db = require("../config/db");
 
+const ensureIssueReportTableAndColumns = (callback) => {
+  const createIssueReportTable = `
+    CREATE TABLE IF NOT EXISTS question_issue_reports (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      domain_id INT NOT NULL,
+      question_id INT NOT NULL,
+      issue_type VARCHAR(100) NOT NULL,
+      description TEXT NOT NULL,
+      status VARCHAR(20) DEFAULT 'open',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_issue_student (student_id),
+      INDEX idx_issue_question (question_id),
+      INDEX idx_issue_status (status)
+    )
+  `;
+
+  const alterAdminReply = `ALTER TABLE question_issue_reports ADD COLUMN admin_reply TEXT NULL`;
+  const alterResolvedAt = `ALTER TABLE question_issue_reports ADD COLUMN resolved_at TIMESTAMP NULL`;
+  const alterResolvedBy = `ALTER TABLE question_issue_reports ADD COLUMN resolved_by INT NULL`;
+
+  db.query(createIssueReportTable, (createErr) => {
+    if (createErr) return callback(createErr);
+
+    db.query(alterAdminReply, (replyErr) => {
+      if (replyErr && replyErr.code !== "ER_DUP_FIELDNAME") return callback(replyErr);
+
+      db.query(alterResolvedAt, (resolvedAtErr) => {
+        if (resolvedAtErr && resolvedAtErr.code !== "ER_DUP_FIELDNAME") return callback(resolvedAtErr);
+
+        db.query(alterResolvedBy, (resolvedByErr) => {
+          if (resolvedByErr && resolvedByErr.code !== "ER_DUP_FIELDNAME") return callback(resolvedByErr);
+          callback(null);
+        });
+      });
+    });
+  });
+};
+
 // Get Dashboard Statistics
 const getDashboardStats = (req, res) => {
   try {
@@ -9,16 +48,15 @@ const getDashboardStats = (req, res) => {
         (SELECT COUNT(*) FROM attempts) AS totalAssessments,
         (SELECT COUNT(*) FROM domains) AS totalDomains,
         (SELECT COUNT(*) FROM questions) AS totalQuestions,
-        (SELECT AVG((score / total_questions) * 100) FROM attempts) AS averageScore,
-        (SELECT COUNT(DISTINCT student_id) FROM attempts WHERE (score / total_questions) * 100 >= 60) AS passCount,
-        (SELECT COUNT(DISTINCT student_id) FROM attempts) AS totalAttemptedStudents,
+        (SELECT AVG((CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100) FROM attempts) AS averageScore,
+        (SELECT COUNT(*) FROM attempts WHERE (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 >= 50) AS passedAttemptCount,
         (SELECT COUNT(*) FROM domains) AS domainCount,
         (SELECT COUNT(DISTINCT student_id) FROM attempts 
-         WHERE (score / total_questions) * 100 >= 80) AS expertCount,
+           WHERE (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 >= 90) AS expertCount,
         (SELECT COUNT(DISTINCT student_id) FROM attempts 
-         WHERE (score / total_questions) * 100 >= 60 AND (score / total_questions) * 100 < 80) AS intermediateCount,
+           WHERE (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 >= 70 AND (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 < 90) AS intermediateCount,
         (SELECT COUNT(DISTINCT student_id) FROM attempts 
-         WHERE (score / total_questions) * 100 < 60) AS beginnerCount
+           WHERE (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 >= 50 AND (CAST(score AS DECIMAL(10,2)) / CAST(total_questions AS DECIMAL(10,2))) * 100 < 70) AS beginnerCount
     `;
     
     db.query(query, (err, results) => {
@@ -32,9 +70,9 @@ const getDashboardStats = (req, res) => {
 
       const data = results[0];
       
-      // Calculate pass rate
-      const passRate = data.totalAttemptedStudents > 0 
-        ? (data.passCount / data.totalAttemptedStudents * 100) 
+      // Attempt-based pass rate: passed attempts / total attempts
+      const passRate = data.totalAssessments > 0 
+        ? (data.passedAttemptCount / data.totalAssessments * 100) 
         : 0;
       
       // Calculate average questions per domain
@@ -204,9 +242,142 @@ const getStudentResults = (req, res) => {
   }
 };
 
+const getQuestionIssueReports = (req, res) => {
+  ensureIssueReportTableAndColumns((tableErr) => {
+    if (tableErr) {
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to prepare issue report notifications"
+      });
+    }
+
+    const { status } = req.query;
+    let query = `
+      SELECT
+        qir.id,
+        qir.student_id,
+        qir.domain_id,
+        qir.question_id,
+        qir.issue_type,
+        qir.description,
+        qir.status,
+        qir.admin_reply,
+        qir.created_at,
+        qir.resolved_at,
+        qir.resolved_by,
+        u.name AS student_name,
+        u.email AS student_email,
+        d.name AS domain_name,
+        q.question_text,
+        admin_user.name AS resolved_by_name
+      FROM question_issue_reports qir
+      LEFT JOIN users u ON qir.student_id = u.id
+      LEFT JOIN domains d ON qir.domain_id = d.id
+      LEFT JOIN questions q ON qir.question_id = q.id
+      LEFT JOIN users admin_user ON qir.resolved_by = admin_user.id
+    `;
+
+    let queryParams = [];
+
+    if (status && (status === "open" || status === "resolved")) {
+      query += ` WHERE qir.status = ?`;
+      queryParams.push(status);
+    }
+
+    query += ` ORDER BY
+        CASE WHEN qir.status = 'open' THEN 0 ELSE 1 END,
+        qir.created_at DESC
+    `;
+
+    db.query(query, queryParams, (err, reports) => {
+      if (err) {
+        return res.status(500).json({
+          status: "error",
+          message: "Failed to fetch issue reports"
+        });
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Issue reports fetched successfully",
+        data: reports
+      });
+    });
+  });
+};
+
+const replyToQuestionIssue = (req, res) => {
+  const adminId = req.user.id;
+  const { reportId } = req.params;
+  const { status, adminReply } = req.body;
+
+  const validStatus = ["open", "resolved"];
+  const normalizedStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+  const normalizedReply = typeof adminReply === "string" ? adminReply.trim() : "";
+
+  if (!reportId || !validStatus.includes(normalizedStatus)) {
+    return res.status(400).json({
+      status: "error",
+      message: "Valid reportId and status are required"
+    });
+  }
+
+  if (normalizedReply.length < 3) {
+    return res.status(400).json({
+      status: "error",
+      message: "Reply must be at least 3 characters"
+    });
+  }
+
+  ensureIssueReportTableAndColumns((tableErr) => {
+    if (tableErr) {
+      return res.status(500).json({
+        status: "error",
+        message: "Failed to prepare issue report notifications"
+      });
+    }
+
+    const updateQuery = `
+      UPDATE question_issue_reports
+      SET status = ?,
+          admin_reply = ?,
+          resolved_by = ?,
+          resolved_at = CASE WHEN ? = 'resolved' THEN NOW() ELSE NULL END
+      WHERE id = ?
+    `;
+
+    db.query(
+      updateQuery,
+      [normalizedStatus, normalizedReply, adminId, normalizedStatus, reportId],
+      (updateErr, result) => {
+        if (updateErr) {
+          return res.status(500).json({
+            status: "error",
+            message: "Failed to update issue report"
+          });
+        }
+
+        if (!result.affectedRows) {
+          return res.status(404).json({
+            status: "error",
+            message: "Issue report not found"
+          });
+        }
+
+        res.status(200).json({
+          status: "success",
+          message: "Issue report updated successfully"
+        });
+      }
+    );
+  });
+};
+
 module.exports = { 
   getDashboardStats, 
   getAllStudents,
   getReportsByDomain,
-  getStudentResults
+  getStudentResults,
+  getQuestionIssueReports,
+  replyToQuestionIssue
 };

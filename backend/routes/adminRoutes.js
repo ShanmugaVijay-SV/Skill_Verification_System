@@ -1,6 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { getDashboardStats, getAllStudents, getReportsByDomain, getStudentResults } = require("../controllers/adminController");
+const {
+	getDashboardStats,
+	getAllStudents,
+	getReportsByDomain,
+	getStudentResults,
+	getQuestionIssueReports,
+	replyToQuestionIssue,
+} = require("../controllers/adminController");
 const { verifyToken } = require("../middleware/authMiddleware");
 const { verifyAdmin } = require("../middleware/adminMiddleware");
 
@@ -15,5 +22,11 @@ router.get("/reports/domains", verifyToken, verifyAdmin, getReportsByDomain);
 
 // Get detailed results for a specific student
 router.get("/students/:studentId/results", verifyToken, verifyAdmin, getStudentResults);
+
+// Get all reported question issues (notification-like feed)
+router.get("/question-issues", verifyToken, verifyAdmin, getQuestionIssueReports);
+
+// Reply/update issue status (resolved/open) with custom admin message
+router.put("/question-issues/:reportId/reply", verifyToken, verifyAdmin, replyToQuestionIssue);
 
 module.exports = router;

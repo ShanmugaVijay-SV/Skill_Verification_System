@@ -5,6 +5,64 @@ const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
 
+const ensureFeedbackTables = (callback) => {
+    const createFeedbackTable = `
+        CREATE TABLE IF NOT EXISTS assessment_feedback (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            student_id INT NOT NULL,
+            domain_id INT NOT NULL,
+            rating TINYINT NOT NULL,
+            comment TEXT NULL,
+            result_status VARCHAR(20) NULL,
+            percentage DECIMAL(5,2) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_feedback_student (student_id),
+            INDEX idx_feedback_domain (domain_id)
+        )
+    `;
+
+    const createQuestionReportTable = `
+        CREATE TABLE IF NOT EXISTS question_issue_reports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            student_id INT NOT NULL,
+            domain_id INT NOT NULL,
+            question_id INT NOT NULL,
+            issue_type VARCHAR(100) NOT NULL,
+            description TEXT NOT NULL,
+            status VARCHAR(20) DEFAULT 'open',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_issue_student (student_id),
+            INDEX idx_issue_question (question_id),
+            INDEX idx_issue_status (status)
+        )
+    `;
+
+    const alterAdminReply = `ALTER TABLE question_issue_reports ADD COLUMN admin_reply TEXT NULL`;
+    const alterResolvedAt = `ALTER TABLE question_issue_reports ADD COLUMN resolved_at TIMESTAMP NULL`;
+    const alterResolvedBy = `ALTER TABLE question_issue_reports ADD COLUMN resolved_by INT NULL`;
+
+    db.query(createFeedbackTable, (feedbackErr) => {
+        if (feedbackErr) return callback(feedbackErr);
+
+        db.query(createQuestionReportTable, (issueErr) => {
+            if (issueErr) return callback(issueErr);
+
+            db.query(alterAdminReply, (replyErr) => {
+                if (replyErr && replyErr.code !== "ER_DUP_FIELDNAME") return callback(replyErr);
+
+                db.query(alterResolvedAt, (resolvedAtErr) => {
+                    if (resolvedAtErr && resolvedAtErr.code !== "ER_DUP_FIELDNAME") return callback(resolvedAtErr);
+
+                    db.query(alterResolvedBy, (resolvedByErr) => {
+                        if (resolvedByErr && resolvedByErr.code !== "ER_DUP_FIELDNAME") return callback(resolvedByErr);
+                        callback(null);
+                    });
+                });
+            });
+        });
+    });
+};
+
 
 // Check Cooldown Status
 exports.checkCooldown = (req, res) => {
@@ -140,17 +198,18 @@ exports.submitAssessment = (req, res) => {
             let resultStatus;
             let level = null;
 
-            if (percentage < 40) {
+            if (percentage < 50) {
                 resultStatus = "Fail";
+                level = "Fail";
             } else {
                 resultStatus = "Pass";
 
-                if (percentage < 60) {
-                    level = "Beginner";
-                } else if (percentage < 80) {
+                if (percentage >= 90) {
+                    level = "Expert";
+                } else if (percentage >= 70) {
                     level = "Intermediate";
                 } else {
-                    level = "Expert";
+                    level = "Beginner";
                 }
             }
 
@@ -169,7 +228,7 @@ db.query(getDomainQuery, [domainId], (err, domainResult) => {
 
     let certificatePath = null;
 
-    if (percentage >= 40) {
+    if (percentage >= 50) {
 
         const doc = new PDFDocument({ size: "A4", layout: "landscape" });
 
@@ -317,17 +376,18 @@ exports.getMyResults = (req, res) => {
             let resultStatus;
             let level = null;
 
-            if (percentage < 40) {
+            if (percentage < 50) {
                 resultStatus = "Fail";
+                level = "Fail";
             } else {
                 resultStatus = "Pass";
 
-                if (percentage < 60) {
-                    level = "Beginner";
-                } else if (percentage < 80) {
+                if (percentage >= 90) {
+                    level = "Expert";
+                } else if (percentage >= 70) {
                     level = "Intermediate";
                 } else {
-                    level = "Expert";
+                    level = "Beginner";
                 }
             }
 
@@ -377,6 +437,158 @@ exports.getLeaderboard = (req, res) => {
             status: "success",
             message: "Leaderboard fetched successfully",
             data: results
+        });
+    });
+};
+
+exports.submitAssessmentFeedback = (req, res) => {
+    const studentId = req.user.id;
+    const { domainId, rating, comment, result, percentage } = req.body;
+
+    const parsedDomainId = parseInt(domainId, 10);
+    const parsedRating = parseInt(rating, 10);
+    const parsedPercentage = percentage != null ? parseFloat(percentage) : null;
+
+    if (!parsedDomainId || parsedRating < 1 || parsedRating > 5) {
+        return res.status(400).json({
+            status: "error",
+            message: "Valid domain and rating (1 to 5) are required"
+        });
+    }
+
+    ensureFeedbackTables((tableErr) => {
+        if (tableErr) {
+            return res.status(500).json({
+                status: "error",
+                message: "Failed to prepare feedback storage"
+            });
+        }
+
+        const insertQuery = `
+            INSERT INTO assessment_feedback
+            (student_id, domain_id, rating, comment, result_status, percentage)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+
+        db.query(
+            insertQuery,
+            [
+                studentId,
+                parsedDomainId,
+                parsedRating,
+                comment ? String(comment).trim() : null,
+                result ? String(result).trim() : null,
+                Number.isNaN(parsedPercentage) ? null : parsedPercentage,
+            ],
+            (insertErr) => {
+                if (insertErr) {
+                    return res.status(500).json({
+                        status: "error",
+                        message: "Failed to submit feedback"
+                    });
+                }
+
+                res.status(201).json({
+                    status: "success",
+                    message: "Feedback submitted successfully"
+                });
+            }
+        );
+    });
+};
+
+exports.reportQuestionIssue = (req, res) => {
+    const studentId = req.user.id;
+    const { domainId, questionId, issueType, description } = req.body;
+
+    const parsedDomainId = parseInt(domainId, 10);
+    const parsedQuestionId = parseInt(questionId, 10);
+    const normalizedIssueType = issueType ? String(issueType).trim() : "";
+    const normalizedDescription = description ? String(description).trim() : "";
+
+    if (!parsedDomainId || !parsedQuestionId || !normalizedIssueType || normalizedDescription.length < 10) {
+        return res.status(400).json({
+            status: "error",
+            message: "Domain, question, issue type and detailed description are required"
+        });
+    }
+
+    ensureFeedbackTables((tableErr) => {
+        if (tableErr) {
+            return res.status(500).json({
+                status: "error",
+                message: "Failed to prepare report storage"
+            });
+        }
+
+        const insertQuery = `
+            INSERT INTO question_issue_reports
+            (student_id, domain_id, question_id, issue_type, description)
+            VALUES (?, ?, ?, ?, ?)
+        `;
+
+        db.query(
+            insertQuery,
+            [studentId, parsedDomainId, parsedQuestionId, normalizedIssueType, normalizedDescription],
+            (insertErr) => {
+                if (insertErr) {
+                    return res.status(500).json({
+                        status: "error",
+                        message: "Failed to submit question report"
+                    });
+                }
+
+                res.status(201).json({
+                    status: "success",
+                    message: "Question issue reported successfully"
+                });
+            }
+        );
+    });
+};
+
+exports.getMyQuestionReports = (req, res) => {
+    const studentId = req.user.id;
+
+    ensureFeedbackTables((tableErr) => {
+        if (tableErr) {
+            return res.status(500).json({
+                status: "error",
+                message: "Failed to prepare report storage"
+            });
+        }
+
+        const query = `
+            SELECT
+                qir.id,
+                qir.issue_type,
+                qir.description,
+                qir.status,
+                qir.admin_reply,
+                qir.created_at,
+                qir.resolved_at,
+                d.name AS domain_name,
+                q.question_text
+            FROM question_issue_reports qir
+            JOIN domains d ON d.id = qir.domain_id
+            LEFT JOIN questions q ON q.id = qir.question_id
+            WHERE qir.student_id = ?
+            ORDER BY qir.created_at DESC
+        `;
+
+        db.query(query, [studentId], (err, results) => {
+            if (err) {
+                return res.status(500).json({
+                    status: "error",
+                    message: "Failed to fetch your issue reports"
+                });
+            }
+
+            res.status(200).json({
+                status: "success",
+                message: "Issue reports fetched successfully",
+                data: results,
+            });
         });
     });
 };

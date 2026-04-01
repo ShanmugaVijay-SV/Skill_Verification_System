@@ -22,24 +22,24 @@ exports.registerStudent = async (req, res) => {
 
     // Validate input
     const errors = [];
-    
+
     if (!name || name.trim().length === 0) {
       errors.push("Name is required");
     }
-    
+
     if (!email || !isValidEmail(email)) {
       errors.push("Valid email is required");
     }
-    
+
     if (!password || !isValidPassword(password)) {
       errors.push("Password must be at least 6 characters");
     }
-    
+
     if (errors.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         status: "error",
         message: "Validation failed",
-        errors 
+        errors
       });
     }
 
@@ -47,16 +47,16 @@ exports.registerStudent = async (req, res) => {
 
     db.query(checkUserQuery, [email.toLowerCase()], async (err, results) => {
       if (err) {
-        return res.status(500).json({ 
+        return res.status(500).json({
           status: "error",
-          message: "Database error" 
+          message: "Database error"
         });
       }
 
       if (results.length > 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           status: "error",
-          message: "User with this email already exists" 
+          message: "User with this email already exists"
         });
       }
 
@@ -70,15 +70,15 @@ exports.registerStudent = async (req, res) => {
 
       db.query(insertQuery, [name.trim(), email.toLowerCase(), hashedPassword], (err, result) => {
         if (err) {
-          return res.status(500).json({ 
+          return res.status(500).json({
             status: "error",
-            message: "Registration failed" 
+            message: "Registration failed"
           });
         }
 
         // 🔥 CREATE TOKEN
         const token = jwt.sign(
-          { id: result.insertId, role: "student" },
+          { id: result.insertId, role: "student", token_version: 0 },
           process.env.JWT_SECRET,
           { expiresIn: "7d" }
         );
@@ -99,9 +99,9 @@ exports.registerStudent = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       status: "error",
-      message: "Server error" 
+      message: "Server error"
     });
   }
 };
@@ -109,145 +109,145 @@ exports.registerStudent = async (req, res) => {
 
 // Student Login
 exports.loginStudent = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        // Validate input
-        if (!email || !password) {
-          return res.status(400).json({ 
-            status: "error",
-            message: "Email and password are required" 
-          });
-        }
-
-        // 1️⃣ Check if user exists
-        const query = "SELECT * FROM users WHERE email = ? AND role = 'student'";
-
-        db.query(query, [email.toLowerCase()], async (err, results) => {
-            if (err) {
-                return res.status(500).json({ 
-                  status: "error",
-                  message: "Database error" 
-                });
-            }
-
-            if (results.length === 0) {
-                return res.status(400).json({ 
-                  status: "error",
-                  message: "Invalid email or password" 
-                });
-            }
-
-            const user = results[0];
-
-            // 2️⃣ Compare password
-            const isMatch = await bcrypt.compare(password, user.password);
-
-            if (!isMatch) {
-                return res.status(400).json({ 
-                  status: "error",
-                  message: "Invalid email or password" 
-                });
-            }
-
-            // 3️⃣ Generate JWT Token
-            const token = jwt.sign(
-                { id: user.id, role: user.role },
-                process.env.JWT_SECRET,
-                { expiresIn: "1d" }
-            );
-
-            // 4️⃣ Send response
-            res.status(200).json({
-              status: "success",
-              message: "Login successful",
-              token,
-              user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-              }
-            });
-
-        });
-
-    } catch (error) {
-        res.status(500).json({ 
-          status: "error",
-          message: "Server error" 
-        });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email and password are required"
+      });
     }
+
+    // 1️⃣ Check if user exists
+    const query = "SELECT * FROM users WHERE email = ? AND role = 'student'";
+
+    db.query(query, [email.toLowerCase()], async (err, results) => {
+      if (err) {
+        return res.status(500).json({
+          status: "error",
+          message: "Database error"
+        });
+      }
+
+      if (results.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid email or password"
+        });
+      }
+
+      const user = results[0];
+
+      // 2️⃣ Compare password
+      const isMatch = await bcrypt.compare(password, user.password);
+
+      if (!isMatch) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid email or password"
+        });
+      }
+
+      // 3️⃣ Generate JWT Token
+      const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
+
+      // 4️⃣ Send response
+      res.status(200).json({
+        status: "success",
+        message: "Login successful",
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Server error"
+    });
+  }
 };
 
 
 exports.loginAdmin = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        // Validate input
-        if (!email || !password) {
-          return res.status(400).json({ 
-            status: "error",
-            message: "Email and password are required" 
-          });
-        }
-
-        const query = "SELECT * FROM users WHERE email = ? AND role = 'admin'";
-
-        db.query(query, [email.toLowerCase()], async (err, results) => {
-            if (err) {
-                console.error("loginAdmin db error", err);
-                return res.status(500).json({ 
-                  status: "error",
-                  message: "Database error" 
-                });
-            }
-
-            console.log("loginAdmin query results", results);
-            if (results.length === 0) {
-                return res.status(400).json({ 
-                  status: "error",
-                  message: "Invalid email or password" 
-                });
-            }
-
-            const user = results[0];
-
-            const isMatch = await bcrypt.compare(password, user.password);
-
-            if (!isMatch) {
-                return res.status(400).json({ 
-                  status: "error",
-                  message: "Invalid email or password" 
-                });
-            }
-
-            const token = jwt.sign(
-                { id: user.id, role: user.role },
-                process.env.JWT_SECRET,
-                { expiresIn: "1d" }
-            );
-
-            res.status(200).json({
-              status: "success",
-              message: "Admin login successful",
-              token,
-              user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-              }
-            });
-        });
-
-    } catch (error) {
-        res.status(500).json({ 
-          status: "error",
-          message: "Server error" 
-        });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email and password are required"
+      });
     }
+
+    const query = "SELECT * FROM users WHERE email = ? AND role = 'admin'";
+
+    db.query(query, [email.toLowerCase()], async (err, results) => {
+      if (err) {
+        console.error("loginAdmin db error", err);
+        return res.status(500).json({
+          status: "error",
+          message: "Database error"
+        });
+      }
+
+      console.log("loginAdmin query results", results);
+      if (results.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid email or password"
+        });
+      }
+
+      const user = results[0];
+
+      const isMatch = await bcrypt.compare(password, user.password);
+
+      if (!isMatch) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid email or password"
+        });
+      }
+
+      const token = jwt.sign(
+        { id: user.id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
+
+      res.status(200).json({
+        status: "success",
+        message: "Admin login successful",
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Server error"
+    });
+  }
 };
 
 // Change Password
@@ -258,20 +258,20 @@ exports.changePassword = async (req, res) => {
 
     // Validate input
     const errors = [];
-    
+
     if (!currentPassword) {
       errors.push("Current password is required");
     }
-    
+
     if (!newPassword || newPassword.length < 6) {
       errors.push("New password must be at least 6 characters");
     }
 
     if (errors.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         status: "error",
         message: "Validation failed",
-        errors 
+        errors
       });
     }
 
@@ -280,16 +280,16 @@ exports.changePassword = async (req, res) => {
 
     db.query(getUserQuery, [userId], async (err, results) => {
       if (err) {
-        return res.status(500).json({ 
+        return res.status(500).json({
           status: "error",
-          message: "Database error" 
+          message: "Database error"
         });
       }
 
       if (results.length === 0) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           status: "error",
-          message: "User not found" 
+          message: "User not found"
         });
       }
 
@@ -299,9 +299,9 @@ exports.changePassword = async (req, res) => {
       const isMatch = await bcrypt.compare(currentPassword, user.password);
 
       if (!isMatch) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           status: "error",
-          message: "Current password is incorrect" 
+          message: "Current password is incorrect"
         });
       }
 
@@ -313,9 +313,9 @@ exports.changePassword = async (req, res) => {
 
       db.query(updateQuery, [hashedPassword, userId], (err) => {
         if (err) {
-          return res.status(500).json({ 
+          return res.status(500).json({
             status: "error",
-            message: "Failed to update password" 
+            message: "Failed to update password"
           });
         }
 
@@ -327,9 +327,33 @@ exports.changePassword = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       status: "error",
-      message: "Server error" 
+      message: "Server error"
     });
+  }
+};
+
+// Logout User
+exports.logout = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Increment token_version in DB to instantly invalidate all previous JWTs for this user
+    const query = "UPDATE users SET token_version = token_version + 1 WHERE id = ?";
+
+    db.query(query, [userId], (err) => {
+      if (err) {
+        return res.status(500).json({ status: "error", message: "Failed to logout" });
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Logged out completely. All sessions expired."
+      });
+    });
+
+  } catch (error) {
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };
