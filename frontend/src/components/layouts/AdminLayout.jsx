@@ -12,7 +12,7 @@ function AdminLayout({ children }) {
         params: { status: "open" },
       });
 
-      setPendingIssueCount(Array.isArray(response.data) ? response.data.length : 0);
+      setPendingIssueCount(Array.isArray(response.data.data) ? response.data.data.length : 0);
     } catch (error) {
       console.error("Unable to fetch pending issue count:", error);
     }
@@ -20,6 +20,13 @@ function AdminLayout({ children }) {
 
   useEffect(() => {
     fetchPendingIssueCount();
+    
+    // Refresh pending issue count every 5 seconds
+    const interval = setInterval(() => {
+      fetchPendingIssueCount();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [fetchPendingIssueCount]);
 
   return (
