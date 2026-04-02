@@ -30,10 +30,10 @@ function AdminLayout({ children }) {
   }, [fetchPendingIssueCount]);
 
   return (
-    <div className="flex min-h-screen bg-transparent">
+    <div className="flex min-h-screen bg-transparent overflow-x-hidden">
       <SideBarAdmin pendingIssueCount={pendingIssueCount} />
 
-      <div className="flex-1 ml-64">
+      <div className="ml-64 w-[calc(100%-16rem)] min-w-0">
         <Topbar pendingIssueCount={pendingIssueCount} />
 
         <div className="p-6 min-h-screen bg-linear-to-br from-cyan-50 via-white to-amber-50/40">
