@@ -36,7 +36,7 @@ function AdminLayout({ children }) {
       <div className="ml-64 w-[calc(100%-16rem)] min-w-0">
         <Topbar pendingIssueCount={pendingIssueCount} />
 
-        <div className="p-6 min-h-screen bg-linear-to-br from-cyan-50 via-white to-amber-50/40">
+        <div className="p-6 pt-18 min-h-screen bg-linear-to-br from-cyan-50 via-white to-amber-50/40">
           {children}
         </div>
       </div>

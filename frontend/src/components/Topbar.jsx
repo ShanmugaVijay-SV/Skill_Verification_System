@@ -19,7 +19,7 @@ function Topbar({ pendingIssueCount = 0 }) {
   };
 
   return (
-    <div className={`sticky top-0 z-40 h-18 shadow-lg border-b backdrop-blur-sm flex items-center justify-between px-6 ${isAdmin
+    <div className={`fixed top-0 left-64 right-0 z-50 h-18 shadow-lg border-b backdrop-blur-sm flex items-center justify-between px-6 ${isAdmin
         ? "bg-linear-to-r from-slate-950 via-teal-900 to-slate-900 border-teal-700/50"
         : "bg-linear-to-r from-slate-950 via-cyan-900 to-slate-900 border-cyan-700/50"
       }`}>
