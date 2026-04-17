@@ -207,8 +207,8 @@ function MyProfilePage() {
             <p className="text-sm text-emerald-100">Average Score</p>
             <p className="text-4xl font-bold mt-1">{stats.averageScore.toFixed(1)}%</p>
           </div>
-          <div className="bg-linear-to-br from-amber-400 to-orange-500 p-6 rounded-2xl shadow-lg text-white">
-            <p className="text-sm text-amber-100">Expert Skills</p>
+          <div className="bg-[#534AB7] p-6 rounded-2xl shadow-lg text-white">
+            <p className="text-sm text-indigo-100">Expert Skills</p>
             <p className="text-4xl font-bold mt-1">{stats.expertSkills}</p>
           </div>
         </div>
@@ -432,7 +432,7 @@ function MyProfilePage() {
               {!isChangingPassword && (
                 <button
                   onClick={() => setIsChangingPassword(true)}
-                  className="bg-linear-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition"
+                  className="bg-[#534AB7] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#463da3] transition"
                 >
                   Change Password
                 </button>
@@ -490,7 +490,7 @@ function MyProfilePage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="bg-linear-to-r from-amber-500 to-orange-500 text-white px-6 py-2 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition"
+                    className="bg-[#534AB7] text-white px-6 py-2 rounded-xl font-semibold hover:bg-[#463da3] transition"
                   >
                     Update Password
                   </button>
