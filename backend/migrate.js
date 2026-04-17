@@ -6,6 +6,11 @@ const addTokenVersionToUsers = `
     ADD COLUMN token_version INT DEFAULT 0;
 `;
 
+const addUsersEmailRoleIndex = `
+    ALTER TABLE users
+    ADD INDEX idx_users_email_role (email, role);
+`;
+
 const executeMigrations = async () => {
     console.log("Starting DB Migrations...");
     try {
@@ -16,6 +21,18 @@ const executeMigrations = async () => {
                     reject(err);
                 } else {
                     console.log("Successfully added/verified token_version on users table.");
+                    resolve();
+                }
+            });
+        });
+
+        await new Promise((resolve, reject) => {
+            db.query(addUsersEmailRoleIndex, (err, result) => {
+                if (err && err.code !== 'ER_DUP_KEYNAME') {
+                    console.error("Error adding users email/role index:", err);
+                    reject(err);
+                } else {
+                    console.log("Successfully added/verified users(email, role) index.");
                     resolve();
                 }
             });

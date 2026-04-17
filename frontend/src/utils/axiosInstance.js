@@ -21,4 +21,28 @@ axiosInstance.interceptors.request.use(
   }
 );
 
+// Handle expired/invalid token globally
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const message = error.response?.data?.message;
+
+    if (status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      const isTokenExpired =
+        typeof message === "string" && message.toLowerCase().includes("expired");
+      const reason = isTokenExpired ? "expired" : "unauthorized";
+
+      if (window.location.pathname !== "/") {
+        window.location.href = `/?session=${reason}`;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export default axiosInstance;

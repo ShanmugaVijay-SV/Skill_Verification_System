@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "../utils/axiosInstance";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -10,6 +10,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   // 🔐 Auto redirect if already logged in
   useEffect(() => {
@@ -24,6 +25,19 @@ function Login() {
       }
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sessionState = params.get("session");
+
+    if (sessionState === "expired") {
+      setError("Session expired. Please sign in again.");
+      navigate("/", { replace: true });
+    } else if (sessionState === "unauthorized") {
+      setError("Please sign in to continue.");
+      navigate("/", { replace: true });
+    }
+  }, [location.search, navigate]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();

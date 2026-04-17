@@ -121,7 +121,7 @@ exports.loginStudent = async (req, res) => {
     }
 
     // 1️⃣ Check if user exists
-    const query = "SELECT * FROM users WHERE email = ? AND role = 'student'";
+    const query = "SELECT id, name, email, role, password FROM users WHERE email = ? AND role = 'student' LIMIT 1";
 
     db.query(query, [email.toLowerCase()], async (err, results) => {
       if (err) {
@@ -193,7 +193,7 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    const query = "SELECT * FROM users WHERE email = ? AND role = 'admin'";
+    const query = "SELECT id, name, email, role, password FROM users WHERE email = ? AND role = 'admin' LIMIT 1";
 
     db.query(query, [email.toLowerCase()], async (err, results) => {
       if (err) {
@@ -204,7 +204,6 @@ exports.loginAdmin = async (req, res) => {
         });
       }
 
-      console.log("loginAdmin query results", results);
       if (results.length === 0) {
         return res.status(400).json({
           status: "error",
