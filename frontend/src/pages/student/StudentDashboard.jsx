@@ -137,8 +137,8 @@ function StudentDashboard() {
               {Object.values(cooldowns).filter((c) => c.canAttempt).length}
             </p>
           </div>
-          <div className="bg-linear-to-br from-amber-400 to-orange-500 p-6 rounded-2xl shadow-lg text-white">
-            <h3 className="text-amber-50 text-sm font-semibold mb-2">In Cooldown</h3>
+          <div className="bg-[#534AB7] p-6 rounded-2xl shadow-lg text-white">
+            <h3 className="text-indigo-100 text-sm font-semibold mb-2">In Cooldown</h3>
             <p className="text-3xl font-bold">
               {Object.values(cooldowns).filter((c) => !c.canAttempt).length}
             </p>
