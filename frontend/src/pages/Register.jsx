@@ -110,17 +110,26 @@ function Register() {
       });
 
       if (response.data.status === "success") {
+        const token = response.data.token || response.data.data?.token;
+        const user = response.data.user || response.data.data?.user;
+
+        if (!token || !user) {
+          throw new Error("Invalid registration response from server");
+        }
+
         // Store token and user info
-        localStorage.setItem("token", response.data.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.data.user));
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
 
         // Redirect to appropriate dashboard based on role
-        const role = response.data.data.user.role;
+        const role = user.role;
         if (role === "admin") {
           navigate("/admin/dashboard");
         } else {
           navigate("/student/dashboard");
         }
+      } else {
+        setError(response.data?.message || "Registration failed. Please try again.");
       }
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");
